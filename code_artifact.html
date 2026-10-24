@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="ja" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Creator Productivity Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f5ff',
+                            100: '#e5edff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            accent: '#10b981',
+                        },
+                        darkbg: '#0f172a',
+                        darkcard: '#1e293b',
+                        darkborder: '#334155'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar for sleeker UI */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-brand-500 selection:text-white">
+
+    <!-- Header / Navbar -->
+    <header class="border-b border-darkborder bg-darkcard/80 backdrop-blur sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-gradient-to-tr from-brand-600 to-emerald-400 p-2 rounded-xl text-white shadow-lg shadow-brand-500/20">
+                    <i data-lucide="video" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-none bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">Creator Hub</h1>
+                    <span class="text-xs text-gray-400">作業＆時給換算ダッシュボード</span>
+                </div>
+            </div>
+
+            <!-- Quick Stats in Header -->
+            <div class="hidden md:flex items-center space-x-6 text-sm">
+                <div class="flex items-center space-x-2 bg-darkbg/50 px-3 py-1.5 rounded-lg border border-darkborder">
+                    <i data-lucide="clock" class="w-4 h-4 text-brand-500"></i>
+                    <span class="text-gray-400">総作業時間:</span>
+                    <span id="headerTotalHours" class="font-bold text-emerald-400">0.0 時間</span>
+                </div>
+                <div class="flex items-center space-x-2 bg-darkbg/50 px-3 py-1.5 rounded-lg border border-darkborder">
+                    <i data-lucide="banknote" class="w-4 h-4 text-emerald-400"></i>
+                    <span class="text-gray-400">平均実質時給:</span>
+                    <span id="headerAvgHourly" class="font-bold text-emerald-400">¥0/h</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
+
+        <!-- Top Section: Timer & Quick Stats Widget -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Active Timer Card -->
+            <div class="lg:col-span-2 bg-darkcard border border-darkborder rounded-2xl p-6 relative overflow-hidden shadow-xl flex flex-col justify-between">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-brand-500/10 rounded-full blur-2xl pointer-events-none"></div>
+                
+                <div>
+                    <div class="flex justify-between items-center mb-4">
+                        <div class="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-brand-500 bg-brand-500/10 px-3 py-1 rounded-full border border-brand-500/20">
+                            <span class="w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span>
+                            タイマー連動
+                        </div>
+                        <span id="timerTaskStatus" class="text-xs text-gray-400">タスク未選択</span>
+                    </div>
+
+                    <h2 id="timerTaskTitle" class="text-xl font-bold text-white mb-1 truncate">計測対象のタスクを選択してください</h2>
+                    <p id="timerTaskMeta" class="text-sm text-gray-400 mb-6">リストから計測したいタスクの「タイマー開始」を押します</p>
+
+                    <!-- Big Timer Display -->
+                    <div class="flex items-baseline space-x-2 my-2">
+                        <span id="timerDisplay" class="text-5xl sm:text-6xl font-extrabold tracking-tight font-mono text-white">00:00:00</span>
+                        <span id="timerHourlyRatePreview" class="text-xs sm:text-sm text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-md">
+                            推定時給: ¥0/h
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Timer Controls -->
+                <div class="mt-6 flex flex-wrap gap-3 items-center">
+                    <button id="btnStartPause" onclick="toggleTimer()" disabled class="flex-1 min-w-[120px] bg-brand-600 hover:bg-brand-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium py-3 px-5 rounded-xl transition flex items-center justify-center space-x-2 shadow-lg shadow-brand-600/30">
+                        <i data-lucide="play" id="btnStartIcon" class="w-5 h-5 fill-current"></i>
+                        <span id="btnStartText">スタート</span>
+                    </button>
+                    <button id="btnReset" onclick="resetTimer()" disabled class="bg-gray-800 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed text-gray-300 font-medium py-3 px-4 rounded-xl transition flex items-center justify-center">
+                        <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                    </button>
+                    <button id="btnManualEdit" onclick="openManualTimeModal()" disabled class="bg-darkbg hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed text-gray-300 border border-darkborder font-medium py-3 px-4 rounded-xl transition flex items-center justify-center space-x-2">
+                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                        <span class="text-sm">時間調整</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Total Analytics Overview Card -->
+            <div class="bg-darkcard border border-darkborder rounded-2xl p-6 shadow-xl flex flex-col justify-between">
+                <div>
+                    <h3 class="text-base font-semibold text-gray-200 mb-4 flex items-center space-x-2">
+                        <i data-lucide="pie-chart" class="w-5 h-5 text-brand-500"></i>
+                        <span>収支サマリー</span>
+                    </h3>
+
+                    <div class="space-y-4">
+                        <div class="bg-darkbg/60 p-4 rounded-xl border border-darkborder/50">
+                            <span class="text-xs text-gray-400 block mb-1">獲得見込み総報酬</span>
+                            <div id="statTotalEarnings" class="text-2xl font-bold text-white">¥0</div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-darkbg/60 p-3.5 rounded-xl border border-darkborder/50">
+                                <span class="text-xs text-gray-400 block mb-1">合計稼働時間</span>
+                                <div id="statTotalHours" class="text-lg font-bold text-brand-500">0.0h</div>
+                            </div>
+                            <div class="bg-darkbg/60 p-3.5 rounded-xl border border-darkborder/50">
+                                <span class="text-xs text-gray-400 block mb-1">平均実質時給</span>
+                                <div id="statAvgHourly" class="text-lg font-bold text-emerald-400">¥0/h</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-4 border-t border-darkborder text-xs text-gray-400 flex justify-between items-center">
+                    <span>完了タスク数: <strong id="statCompletedCount" class="text-white">0</strong>/ <span id="statTotalCount">0</span></span>
+                    <span id="statEfficiency" class="text-emerald-400 font-medium">進行状況: 0%</span>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Dashboard Charts Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Hourly Rate per Task Chart -->
+            <div class="bg-darkcard border border-darkborder rounded-2xl p-5 shadow-xl">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-base font-semibold text-gray-200 flex items-center space-x-2">
+                        <i data-lucide="trending-up" class="w-5 h-5 text-emerald-400"></i>
+                        <span>案件別 実質時給の比較 (円/h)</span>
+                    </h3>
+                </div>
+                <div class="relative h-60 w-full">
+                    <canvas id="hourlyChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Time Allocation Chart -->
+            <div class="bg-darkcard border border-darkborder rounded-2xl p-5 shadow-xl">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-base font-semibold text-gray-200 flex items-center space-x-2">
+                        <i data-lucide="bar-chart-2" class="w-5 h-5 text-brand-500"></i>
+                        <span>タスク別 作業時間内訳 (時間)</span>
+                    </h3>
+                </div>
+                <div class="relative h-60 w-full">
+                    <canvas id="timeChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Workspace: Tasks & Future Roadmap -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- Left 2 Cols: Task / Project List -->
+            <div class="lg:col-span-2 space-y-4">
+                <div class="flex flex-wrap justify-between items-center gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-white flex items-center space-x-2">
+                            <i data-lucide="check-square" class="w-6 h-6 text-brand-500"></i>
+                            <span>案件・タスク一覧</span>
+                        </h2>
+                        <p class="text-xs text-gray-400">動画編集やクリエイティブ案件の工数と報酬を管理</p>
+                    </div>
+
+                    <button onclick="openTaskModal()" class="bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition flex items-center space-x-2 shadow-lg shadow-brand-600/20">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        <span>新規タスク追加</span>
+                    </button>
+                </div>
+
+                <!-- Filters -->
+                <div class="flex items-center space-x-2 overflow-x-auto pb-1 text-sm">
+                    <button onclick="setFilter('all')" id="filter-all" class="px-3 py-1.5 rounded-lg bg-brand-600 text-white font-medium">すべて</button>
+                    <button onclick="setFilter('todo')" id="filter-todo" class="px-3 py-1.5 rounded-lg bg-darkcard text-gray-400 hover:text-white border border-darkborder">未着手</button>
+                    <button onclick="setFilter('doing')" id="filter-doing" class="px-3 py-1.5 rounded-lg bg-darkcard text-gray-400 hover:text-white border border-darkborder">進行中</button>
+                    <button onclick="setFilter('done')" id="filter-done" class="px-3 py-1.5 rounded-lg bg-darkcard text-gray-400 hover:text-white border border-darkborder">完了</button>
+                </div>
+
+                <!-- Task List Container -->
+                <div id="taskList" class="space-y-3">
+                    <!-- Dynamic rendering -->
+                </div>
+            </div>
+
+            <!-- Right Col: Next Work & Roadmap Memo -->
+            <div class="space-y-4">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h2 class="text-xl font-bold text-white flex items-center space-x-2">
+                            <i data-lucide="compass" class="w-6 h-6 text-amber-400"></i>
+                            <span>次の仕事・ロードマップ</span>
+                        </h2>
+                        <p class="text-xs text-gray-400">今後の案件獲得目標や次回アイディアメモ</p>
+                    </div>
+                </div>
+
+                <!-- Add Idea Input -->
+                <div class="bg-darkcard border border-darkborder rounded-2xl p-4 shadow-xl">
+                    <form onsubmit="addRoadmapItem(event)" class="space-y-3">
+                        <div>
+                            <input type="text" id="roadmapInput" placeholder="例: チャンネル単価アップの交渉、サムネテンプレの作成" required class="w-full bg-darkbg border border-darkborder rounded-xl px-3.5 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-brand-500">
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <select id="roadmapCategory" class="bg-darkbg border border-darkborder rounded-lg px-2.5 py-1.5 text-xs text-gray-300 focus:outline-none">
+                                <option value="目標">🎯 目標</option>
+                                <option value="改善案">⚡ 効率化・改善</option>
+                                <option value="営業・提案">✉️ 営業・提案</option>
+                                <option value="学び">📚 スキル・学び</option>
+                            </select>
+                            <button type="submit" class="bg-gray-800 hover:bg-gray-700 text-white text-xs px-3 py-1.5 rounded-lg font-medium transition flex items-center space-x-1">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                                <span>追加</span>
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Roadmap List -->
+                    <div id="roadmapList" class="mt-4 space-y-2.5 max-h-[450px] overflow-y-auto pr-1">
+                        <!-- Dynamic items -->
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Task Add/Edit Modal -->
+    <div id="taskModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-darkcard border border-darkborder rounded-2xl max-w-lg w-full p-6 shadow-2xl relative animate-in fade-in zoom-in duration-150">
+            <button onclick="closeTaskModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <h3 id="modalTitle" class="text-lg font-bold text-white mb-4">新規タスク追加</h3>
+
+            <form onsubmit="saveTask(event)" class="space-y-4">
+                <input type="hidden" id="taskId">
+                
+                <div>
+                    <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">案件・タスク名 *</label>
+                    <input type="text" id="taskTitleInput" required placeholder="例: YouTube動画編集 #05（カット・テロップ）" class="w-full bg-darkbg border border-darkborder rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-brand-500">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">案件単価 (円) *</label>
+                        <input type="number" id="taskPriceInput" min="0" step="500" placeholder="15000" required class="w-full bg-darkbg border border-darkborder rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-brand-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">想定作業時間 (h)</label>
+                        <input type="number" id="taskEstimatedTimeInput" min="0" step="0.5" placeholder="5" class="w-full bg-darkbg border border-darkborder rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-brand-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">ステータス</label>
+                    <select id="taskStatusInput" class="w-full bg-darkbg border border-darkborder rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-brand-500">
+                        <option value="todo">未着手</option>
+                        <option value="doing">進行中</option>
+                        <option value="done">完了</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">詳細メモ / 「次の手」メモ</label>
+                    <textarea id="taskMemoInput" rows="3" placeholder="例: 構成案チェック完了後の編集。BGMのチョイスに注意。次回は単価交渉の余地あり。" class="w-full bg-darkbg border border-darkborder rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-brand-500"></textarea>
+                </div>
+
+                <div class="flex justify-end space-x-3 pt-2">
+                    <button type="button" onclick="closeTaskModal()" class="px-4 py-2 rounded-xl border border-darkborder text-gray-300 hover:bg-gray-800 text-sm font-medium">キャンセル</button>
+                    <button type="submit" class="px-5 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold shadow-lg shadow-brand-600/20">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Manual Time Edit Modal -->
+    <div id="manualTimeModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-darkcard border border-darkborder rounded-2xl max-w-sm w-full p-6 shadow-2xl relative">
+            <button onclick="closeManualTimeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <h3 class="text-lg font-bold text-white mb-2">作業時間の手動調整</h3>
+            <p class="text-xs text-gray-400 mb-4">累積の作業時間を直接編集します。</p>
+
+            <form onsubmit="saveManualTime(event)" class="space-y-4">
+                <div class="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">時間</label>
+                        <input type="number" id="manualHours" min="0" class="w-full bg-darkbg border border-darkborder rounded-xl p-2 text-center text-white font-mono font-bold">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">分</label>
+                        <input type="number" id="manualMinutes" min="0" max="59" class="w-full bg-darkbg border border-darkborder rounded-xl p-2 text-center text-white font-mono font-bold">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">秒</label>
+                        <input type="number" id="manualSeconds" min="0" max="59" class="w-full bg-darkbg border border-darkborder rounded-xl p-2 text-center text-white font-mono font-bold">
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-3 pt-2">
+                    <button type="button" onclick="closeManualTimeModal()" class="px-4 py-2 rounded-xl border border-darkborder text-gray-300 hover:bg-gray-800 text-sm">キャンセル</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold">変更を保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Application Script Logic -->
+    <script>
+        // State
+        let tasks = [];
+        let roadmapItems = [];
+        let activeTaskId = null;
+        let timerInterval = null;
+        let isTimerRunning = false;
+        let activeFilter = 'all';
+
+        // Chart instances
+        let hourlyChart = null;
+        let timeChart = null;
+
+        // Default Mock Data
+        const initialTasks = [
+            {
+                id: 'task-1',
+                title: '【YouTube】ガジェットレビュー動画 編集・テロップ入れ',
+                price: 24000,
+                estimatedHours: 8,
+                loggedSeconds: 21600, // 6 hours
+                status: 'doing',
+                memo: 'エフェクト・効果音を多めにしてテンポよく見せる。次はサムネ制作の別発注を打診。'
+            },
+            {
+                id: 'task-2',
+                title: '【TikTok】ショート動画 3本パック制作',
+                price: 15000,
+                estimatedHours: 3,
+                loggedSeconds: 9000, // 2.5 hours
+                status: 'done',
+                memo: 'テンポ重視で完走率高め。実質時給6000円達成。次回リピート確実。'
+            },
+            {
+                id: 'task-3',
+                title: '【Pr】企業プロモーション動画V2 修正対応',
+                price: 35000,
+                estimatedHours: 10,
+                loggedSeconds: 39600, // 11 hours
+                status: 'doing',
+                memo: '修正指示のラリーが多く時間超過ぎみ。次回から修正回数制限を契約に含める。'
+            }
+        ];
+
+        const initialRoadmap = [
+            { id: 'rm-1', text: '既存クライアントへショート動画内製パッケージの提案書を送る', category: '営業・提案', done: false },
+            { id: 'rm-2', text: 'Premiere Proの自動文字起こしショートカットを整理してスピードUP', category: '改善案', done: true },
+            { id: 'rm-3', text: '月間合計報酬30万円達成を目指す（目標実質時給 3,500円以上）', category: '目標', done: false }
+        ];
+
+        // Init App
+        window.onload = function() {
+            loadFromLocalStorage();
+            initCharts();
+            renderTasks();
+            renderRoadmap();
+            updateOverallStats();
+            lucide.createIcons();
+        };
+
+        // Local Storage Handling
+        function loadFromLocalStorage() {
+            const savedTasks = localStorage.getItem('creator_hub_tasks');
+            const savedRoadmap = localStorage.getItem('creator_hub_roadmap');
+
+            tasks = savedTasks ? JSON.parse(savedTasks) : initialTasks;
+            roadmapItems = savedRoadmap ? JSON.parse(savedRoadmap) : initialRoadmap;
+        }
+
+        function saveData() {
+            localStorage.setItem('creator_hub_tasks', JSON.stringify(tasks));
+            localStorage.setItem('creator_hub_roadmap', JSON.stringify(roadmapItems));
+            updateOverallStats();
+            updateCharts();
+        }
+
+        // Render Functions
+        function renderTasks() {
+            const container = document.getElementById('taskList');
+            container.innerHTML = '';
+
+            const filteredTasks = tasks.filter(t => {
+                if (activeFilter === 'all') return true;
+                return t.status === activeFilter;
+            });
+
+            if (filteredTasks.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 bg-darkcard border border-darkborder rounded-2xl text-gray-400">
+                        <i data-lucide="inbox" class="w-10 h-10 mx-auto mb-2 text-gray-500"></i>
+                        <p class="text-sm">該当するタスクはありません</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            filteredTasks.forEach(task => {
+                const hours = task.loggedSeconds / 3600;
+                const hourlyRate = hours > 0 ? Math.round(task.price / hours) : 0;
+                const isActive = activeTaskId === task.id;
+
+                let statusBadge = '';
+                if (task.status === 'todo') statusBadge = '<span class="bg-gray-700 text-gray-300 text-xs px-2.5 py-1 rounded-full">未着手</span>';
+                else if (task.status === 'doing') statusBadge = '<span class="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs px-2.5 py-1 rounded-full">進行中</span>';
+                else statusBadge = '<span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs px-2.5 py-1 rounded-full">完了</span>';
+
+                const card = document.createElement('div');
+                card.className = `bg-darkcard border ${isActive ? 'border-brand-500 ring-1 ring-brand-500' : 'border-darkborder'} rounded-2xl p-5 shadow-lg transition hover:border-gray-600 relative`;
+                
+                card.innerHTML = `
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                        <div class="flex items-center space-x-3">
+                            <button onclick="toggleTaskStatus('${task.id}')" title="ステータス切替" class="focus:outline-none">
+                                ${task.status === 'done' 
+                                    ? '<i data-lucide="check-circle-2" class="w-6 h-6 text-emerald-400 fill-emerald-400/20"></i>' 
+                                    : '<i data-lucide="circle" class="w-6 h-6 text-gray-500 hover:text-brand-500"></i>'}
+                            </button>
+                            <h3 class="font-bold text-white text-base ${task.status === 'done' ? 'line-through text-gray-400' : ''}">${escapeHtml(task.title)}</h3>
+                        </div>
+                        <div class="flex items-center space-x-2 self-start sm:self-auto">
+                            ${statusBadge}
+                            <button onclick="selectTaskForTimer('${task.id}')" class="px-3 py-1.5 text-xs font-semibold rounded-xl ${isActive ? 'bg-brand-600 text-white' : 'bg-darkbg text-gray-300 hover:bg-gray-800 border border-darkborder'} transition flex items-center space-x-1">
+                                <i data-lucide="${isActive && isTimerRunning ? 'pause' : 'play'}" class="w-3.5 h-3.5"></i>
+                                <span>${isActive ? (isTimerRunning ? '計測中' : '選択中') : 'タイマー'}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Metrics Grid -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-darkbg/50 p-3 rounded-xl border border-darkborder/50 text-xs mb-3">
+                        <div>
+                            <span class="text-gray-400 block">報酬額</span>
+                            <span class="font-bold text-white">¥${task.price.toLocaleString()}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-400 block">作業時間</span>
+                            <span class="font-bold text-brand-500">${formatSecondsToHMS(task.loggedSeconds)}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-400 block">実質時給</span>
+                            <span class="font-bold ${hourlyRate >= 3000 ? 'text-emerald-400' : 'text-amber-400'}">¥${hourlyRate.toLocaleString()}/h</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-400 block">予定時間</span>
+                            <span class="text-gray-300">${task.estimatedHours ? task.estimatedHours + '時間' : '-'}</span>
+                        </div>
+                    </div>
+
+                    ${task.memo ? `
+                        <p class="text-xs text-gray-400 bg-darkbg/30 p-2.5 rounded-lg border border-darkborder/30 flex items-start space-x-1.5">
+                            <i data-lucide="file-text" class="w-3.5 h-3.5 text-gray-500 shrink-0 mt-0.5"></i>
+                            <span class="line-clamp-2">${escapeHtml(task.memo)}</span>
+                        </p>
+                    ` : ''}
+
+                    <div class="mt-3 flex justify-end space-x-2 border-t border-darkborder/40 pt-2 text-xs">
+                        <button onclick="editTask('${task.id}')" class="text-gray-400 hover:text-white px-2 py-1 flex items-center space-x-1">
+                            <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+                            <span>編集</span>
+                        </button>
+                        <button onclick="deleteTask('${task.id}')" class="text-rose-400 hover:text-rose-300 px-2 py-1 flex items-center space-x-1">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            <span>削除</span>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            lucide.createIcons();
+        }
+
+        function renderRoadmap() {
+            const container = document.getElementById('roadmapList');
+            container.innerHTML = '';
+
+            if (roadmapItems.length === 0) {
+                container.innerHTML = '<p class="text-xs text-gray-500 text-center py-4">ロードマップメモはありません</p>';
+                return;
+            }
+
+            roadmapItems.forEach(item => {
+                const el = document.createElement('div');
+                el.className = 'flex items-start justify-between bg-darkbg/60 border border-darkborder/60 p-3 rounded-xl text-xs group hover:border-gray-600 transition';
+                
+                el.innerHTML = `
+                    <div class="flex items-start space-x-2.5">
+                        <button onclick="toggleRoadmap('${item.id}')" class="mt-0.5 focus:outline-none">
+                            <i data-lucide="${item.done ? 'check-square' : 'square'}" class="w-4 h-4 ${item.done ? 'text-emerald-400' : 'text-gray-500'}"></i>
+                        </button>
+                        <div>
+                            <span class="inline-block px-2 py-0.5 text-[10px] rounded bg-darkcard text-gray-400 border border-darkborder mb-1">${item.category}</span>
+                            <p class="text-gray-200 ${item.done ? 'line-through text-gray-500' : ''}">${escapeHtml(item.text)}</p>
+                        </div>
+                    </div>
+                    <button onclick="deleteRoadmap('${item.id}')" class="text-gray-500 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                `;
+                container.appendChild(el);
+            });
+
+            lucide.createIcons();
+        }
+
+        // Timer Logic
+        function selectTaskForTimer(taskId) {
+            if (isTimerRunning) {
+                pauseTimer();
+            }
+            activeTaskId = taskId;
+            updateTimerWidget();
+            renderTasks();
+        }
+
+        function updateTimerWidget() {
+            const task = tasks.find(t => t.id === activeTaskId);
+            const btnStart = document.getElementById('btnStartPause');
+            const btnReset = document.getElementById('btnReset');
+            const btnManual = document.getElementById('btnManualEdit');
+
+            if (!task) {
+                document.getElementById('timerTaskTitle').innerText = '計測対象のタスクを選択してください';
+                document.getElementById('timerTaskMeta').innerText = 'タスクカードの「タイマー」ボタンを押して選択します';
+                document.getElementById('timerTaskStatus').innerText = '未選択';
+                document.getElementById('timerDisplay').innerText = '00:00:00';
+                document.getElementById('timerHourlyRatePreview').innerText = '推定時給: ¥0/h';
+                btnStart.disabled = true;
+                btnReset.disabled = true;
+                btnManual.disabled = true;
+                return;
+            }
+
+            btnStart.disabled = false;
+            btnReset.disabled = false;
+            btnManual.disabled = false;
+
+            document.getElementById('timerTaskTitle').innerText = task.title;
+            document.getElementById('timerTaskMeta').innerText = `案件単価: ¥${task.price.toLocaleString()}`;
+            document.getElementById('timerTaskStatus').innerText = task.status === 'done' ? '完了済み' : '選択中';
+            
+            document.getElementById('timerDisplay').innerText = formatSecondsToHMS(task.loggedSeconds);
+            
+            const hours = task.loggedSeconds / 3600;
+            const hourly = hours > 0 ? Math.round(task.price / hours) : 0;
+            document.getElementById('timerHourlyRatePreview').innerText = `実質時給: ¥${hourly.toLocaleString()}/h`;
+        }
+
+        function toggleTimer() {
+            if (!activeTaskId) return;
+            if (isTimerRunning) {
+                pauseTimer();
+            } else {
+                startTimer();
+            }
+        }
+
+        function startTimer() {
+            if (isTimerRunning || !activeTaskId) return;
+            isTimerRunning = true;
+
+            const btnStartIcon = document.getElementById('btnStartIcon');
+            const btnStartText = document.getElementById('btnStartText');
+            btnStartIcon.setAttribute('data-lucide', 'pause');
+            btnStartText.innerText = '一時停止';
+            lucide.createIcons();
+
+            timerInterval = setInterval(() => {
+                const task = tasks.find(t => t.id === activeTaskId);
+                if (task) {
+                    task.loggedSeconds += 1;
+                    updateTimerWidget();
+                    // Auto-sync status to doing if todo
+                    if (task.status === 'todo') {
+                        task.status = 'doing';
+                        renderTasks();
+                    }
+                }
+            }, 1000);
+
+            renderTasks();
+        }
+
+        function pauseTimer() {
+            if (!isTimerRunning) return;
+            isTimerRunning = false;
+            clearInterval(timerInterval);
+
+            const btnStartIcon = document.getElementById('btnStartIcon');
+            const btnStartText = document.getElementById('btnStartText');
+            btnStartIcon.setAttribute('data-lucide', 'play');
+            btnStartText.innerText = 'スタート';
+            lucide.createIcons();
+
+            saveData();
+            renderTasks();
+        }
+
+        function resetTimer() {
+            if (!activeTaskId) return;
+            if (confirm('このタスクの計測時間を0にリセットしますか？')) {
+                pauseTimer();
+                const task = tasks.find(t => t.id === activeTaskId);
+                if (task) {
+                    task.loggedSeconds = 0;
+                    updateTimerWidget();
+                    saveData();
+                    renderTasks();
+                }
+            }
+        }
+
+        // Manual Time Modal
+        function openManualTimeModal() {
+            if (!activeTaskId) return;
+            const task = tasks.find(t => t.id === activeTaskId);
+            if (!task) return;
+
+            const h = Math.floor(task.loggedSeconds / 3600);
+            const m = Math.floor((task.loggedSeconds % 3600) / 60);
+            const s = task.loggedSeconds % 60;
+
+            document.getElementById('manualHours').value = h;
+            document.getElementById('manualMinutes').value = m;
+            document.getElementById('manualSeconds').value = s;
+
+            document.getElementById('manualTimeModal').classList.remove('hidden');
+        }
+
+        function closeManualTimeModal() {
+            document.getElementById('manualTimeModal').classList.add('hidden');
+        }
+
+        function saveManualTime(e) {
+            e.preventDefault();
+            if (!activeTaskId) return;
+            const task = tasks.find(t => t.id === activeTaskId);
+            if (!task) return;
+
+            const h = parseInt(document.getElementById('manualHours').value) || 0;
+            const m = parseInt(document.getElementById('manualMinutes').value) || 0;
+            const s = parseInt(document.getElementById('manualSeconds').value) || 0;
+
+            task.loggedSeconds = (h * 3600) + (m * 60) + s;
+
+            updateTimerWidget();
+            saveData();
+            renderTasks();
+            closeManualTimeModal();
+        }
+
+        // Task CRUD Actions
+        function openTaskModal(editId = null) {
+            const modal = document.getElementById('taskModal');
+            const modalTitle = document.getElementById('modalTitle');
+
+            if (editId) {
+                const task = tasks.find(t => t.id === editId);
+                if (!task) return;
+                modalTitle.innerText = 'タスクの編集';
+                document.getElementById('taskId').value = task.id;
+                document.getElementById('taskTitleInput').value = task.title;
+                document.getElementById('taskPriceInput').value = task.price;
+                document.getElementById('taskEstimatedTimeInput').value = task.estimatedHours || '';
+                document.getElementById('taskStatusInput').value = task.status;
+                document.getElementById('taskMemoInput').value = task.memo || '';
+            } else {
+                modalTitle.innerText = '新規タスク追加';
+                document.getElementById('taskId').value = '';
+                document.getElementById('taskTitleInput').value = '';
+                document.getElementById('taskPriceInput').value = '';
+                document.getElementById('taskEstimatedTimeInput').value = '';
+                document.getElementById('taskStatusInput').value = 'todo';
+                document.getElementById('taskMemoInput').value = '';
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeTaskModal() {
+            document.getElementById('taskModal').classList.add('hidden');
+        }
+
+        function saveTask(e) {
+            e.preventDefault();
+            const id = document.getElementById('taskId').value;
+            const title = document.getElementById('taskTitleInput').value.trim();
+            const price = parseFloat(document.getElementById('taskPriceInput').value) || 0;
+            const estimatedHours = parseFloat(document.getElementById('taskEstimatedTimeInput').value) || 0;
+            const status = document.getElementById('taskStatusInput').value;
+            const memo = document.getElementById('taskMemoInput').value.trim();
+
+            if (id) {
+                // Edit
+                const task = tasks.find(t => t.id === id);
+                if (task) {
+                    task.title = title;
+                    task.price = price;
+                    task.estimatedHours = estimatedHours;
+                    task.status = status;
+                    task.memo = memo;
+                }
+            } else {
+                // New
+                const newTask = {
+                    id: 'task-' + Date.now(),
+                    title,
+                    price,
+                    estimatedHours,
+                    loggedSeconds: 0,
+                    status,
+                    memo
+                };
+                tasks.unshift(newTask);
+            }
+
+            saveData();
+            renderTasks();
+            updateTimerWidget();
+            closeTaskModal();
+        }
+
+        function toggleTaskStatus(id) {
+            const task = tasks.find(t => t.id === id);
+            if (task) {
+                task.status = task.status === 'done' ? 'doing' : 'done';
+                saveData();
+                renderTasks();
+            }
+        }
+
+        function editTask(id) {
+            openTaskModal(id);
+        }
+
+        function deleteTask(id) {
+            if (confirm('このタスクを削除しますか？')) {
+                if (activeTaskId === id) {
+                    pauseTimer();
+                    activeTaskId = null;
+                    updateTimerWidget();
+                }
+                tasks = tasks.filter(t => t.id !== id);
+                saveData();
+                renderTasks();
+            }
+        }
+
+        function setFilter(filter) {
+            activeFilter = filter;
+            ['all', 'todo', 'doing', 'done'].forEach(f => {
+                const btn = document.getElementById(`filter-${f}`);
+                if (f === filter) {
+                    btn.className = 'px-3 py-1.5 rounded-lg bg-brand-600 text-white font-medium';
+                } else {
+                    btn.className = 'px-3 py-1.5 rounded-lg bg-darkcard text-gray-400 hover:text-white border border-darkborder';
+                }
+            });
+            renderTasks();
+        }
+
+        // Roadmap CRUD
+        function addRoadmapItem(e) {
+            e.preventDefault();
+            const input = document.getElementById('roadmapInput');
+            const categorySelect = document.getElementById('roadmapCategory');
+            const text = input.value.trim();
+
+            if (!text) return;
+
+            roadmapItems.unshift({
+                id: 'rm-' + Date.now(),
+                text,
+                category: categorySelect.value,
+                done: false
+            });
+
+            input.value = '';
+            saveData();
+            renderRoadmap();
+        }
+
+        function toggleRoadmap(id) {
+            const item = roadmapItems.find(r => r.id === id);
+            if (item) {
+                item.done = !item.done;
+                saveData();
+                renderRoadmap();
+            }
+        }
+
+        function deleteRoadmap(id) {
+            roadmapItems = roadmapItems.filter(r => r.id !== id);
+            saveData();
+            renderRoadmap();
+        }
+
+        // Stats & Visualization
+        function updateOverallStats() {
+            let totalEarnings = 0;
+            let totalSeconds = 0;
+            let completedCount = 0;
+
+            tasks.forEach(task => {
+                totalEarnings += task.price;
+                totalSeconds += task.loggedSeconds;
+                if (task.status === 'done') completedCount++;
+            });
+
+            const totalHours = totalSeconds / 3600;
+            const avgHourly = totalHours > 0 ? Math.round(totalEarnings / totalHours) : 0;
+            const progress = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
+
+            document.getElementById('statTotalEarnings').innerText = `¥${totalEarnings.toLocaleString()}`;
+            document.getElementById('statTotalHours').innerText = `${totalHours.toFixed(1)}h`;
+            document.getElementById('statAvgHourly').innerText = `¥${avgHourly.toLocaleString()}/h`;
+            document.getElementById('statCompletedCount').innerText = completedCount;
+            document.getElementById('statTotalCount').innerText = tasks.length;
+            document.getElementById('statEfficiency').innerText = `達成率: ${progress}%`;
+
+            document.getElementById('headerTotalHours').innerText = `${totalHours.toFixed(1)} 時間`;
+            document.getElementById('headerAvgHourly').innerText = `¥${avgHourly.toLocaleString()}/h`;
+        }
+
+        function initCharts() {
+            const ctxHourly = document.getElementById('hourlyChart').getContext('2d');
+            const ctxTime = document.getElementById('timeChart').getContext('2d');
+
+            hourlyChart = new Chart(ctxHourly, {
+                type: 'bar',
+                data: { labels: [], datasets: [{ label: '実質時給 (円/h)', data: [], backgroundColor: '#10b981', borderRadius: 8 }] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } },
+                        y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#334155' } }
+                    }
+                }
+            });
+
+            timeChart = new Chart(ctxTime, {
+                type: 'doughnut',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { color: '#cbd5e1', font: { size: 11 } } }
+                    }
+                }
+            });
+
+            updateCharts();
+        }
+
+        function updateCharts() {
+            if (!hourlyChart || !timeChart) return;
+
+            const labels = tasks.map(t => t.title.length > 10 ? t.title.substring(0, 10) + '...' : t.title);
+            const hourlyData = tasks.map(t => {
+                const h = t.loggedSeconds / 3600;
+                return h > 0 ? Math.round(t.price / h) : 0;
+            });
+
+            const timeData = tasks.map(t => (t.loggedSeconds / 3600).toFixed(1));
+
+            hourlyChart.data.labels = labels;
+            hourlyChart.data.datasets[0].data = hourlyData;
+            hourlyChart.update();
+
+            timeChart.data.labels = labels;
+            timeChart.data.datasets[0].data = timeData;
+            timeChart.update();
+        }
+
+        // Utilities
+        function formatSecondsToHMS(sec) {
+            const h = Math.floor(sec / 3600);
+            const m = Math.floor((sec % 3600) / 60);
+            const s = sec % 60;
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>"']/g, function(m) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                }[m];
+            });
+        }
+    </script>
+</body>
+</html>
